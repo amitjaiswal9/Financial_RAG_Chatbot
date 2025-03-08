@@ -1,3 +1,7 @@
 pdfplumber
-streamlit
+numpy
 faiss-cpu
+streamlit
+sentence-transformers
+rank-bm25
+transformers
