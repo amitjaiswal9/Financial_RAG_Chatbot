@@ -1,3 +1,3 @@
 pdfplumber
-faiss
+faiss-gpu
 streamlit
