@@ -1,1 +1,3 @@
 pdfplumber
+faiss
+streamlit
