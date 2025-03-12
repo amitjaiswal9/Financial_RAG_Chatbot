@@ -18,7 +18,7 @@ FINANCE_KEYWORDS = ["revenue", "profit", "loss", "investment", "stock", "dividen
 
 @st.cache_resource
 def get_local_pdfs():
-    return ["TCS-2023-2024.pdf", "TCS-2022-2023.pdf"]
+    return ["TCS-2022-2023.pdf","TCS-2023-2024.pdf",]
 
 @st.cache_resource
 def extract_text_from_pdfs(pdf_paths):
@@ -67,7 +67,6 @@ def retrieve_documents(query, bm25, faiss_index, embed_model, chunks, top_k=10):
     faiss_top_k = faiss_top_k[0]
     
     retrieved_chunks = list(set([chunks[i] for i in bm25_top_k] + [chunks[i] for i in faiss_top_k]))
-    print(f"Retrieved Chunks: {retrieved_chunks}")
     return "\n".join(retrieved_chunks) if retrieved_chunks else "No relevant data found."
 
 @st.cache_resource
@@ -82,27 +81,22 @@ def generate_response(context, query, model):
     if not context.strip():
         return "I couldn't find relevant data for your question. Please refine your query."
     input_text = f"Context: {context}\n\nQuestion: {query}\n\nAnswer strictly using the provided data. If unsure, reply 'I don't know'."
-    print(f"SLM Input:\n{input_text}")
     response = model(input_text, max_length=300, truncation=True)[0]['generated_text']
     return response
 
 def validate_query(query):
+    if not query.strip():
+        return False  # Reject empty queries
     if any(word in query.lower() for word in BLACKLISTED_WORDS):
-        print(f"Blocked Query: {query}")
-        return False
-    if not re.match(r'^[a-zA-Z0-9 ?!.]+$', query):
-        return False
-    from fuzzywuzzy import fuzz
-    if all(fuzz.partial_ratio(query.lower(), keyword.lower()) < 70 for keyword in FINANCE_KEYWORDS):
-        print(f"Irrelevant Query: {query}")
-        return "irrelevant"
+        return False  # Reject blacklisted content
+    if not any(keyword in query.lower() for keyword in FINANCE_KEYWORDS):
+        return False  # Encourage financial queries
     return True
 
 def check_hallucination(response, context, embed_model):
     response_embedding = embed_model.encode([response], normalize_embeddings=True)
     context_embedding = embed_model.encode([context], normalize_embeddings=True)
     similarity = util.pytorch_cos_sim(response_embedding, context_embedding).item()
-    print(f"Generated Response: {response}\nContext: {context}\nComputed Similarity Score: {similarity}")
     return similarity >= SIMILARITY_THRESHOLD, similarity
 
 def main():
@@ -111,24 +105,22 @@ def main():
     
     if st.button("Search"):
         validation_result = validate_query(query)
-        if validation_result == "irrelevant":
-            st.write("This question is outside my scope. Please ask a financial question.")
-        elif validation_result:
-            context = retrieve_documents(query, bm25, faiss_index, embed_model, chunks)
-            response = generate_response(context, query, slm_model)
-            
-            is_valid, confidence_score = check_hallucination(response, context, embed_model)
-            if confidence_score < CONFIDENCE_THRESHOLD:
-                response = "I don't have enough reliable data to answer this accurately."
-                confidence = f"Low ({confidence_score:.2f})"
-            else:
-                confidence = f"High ({confidence_score:.2f})" if is_valid else f"Medium ({confidence_score:.2f})"
-            
-            st.markdown(f"**Retrieved Context:**\n{context}")
-            st.markdown(f"**Answer:** {response}")
-            st.markdown(f"**Confidence Score:** {confidence}")
-        else:
+        if not validation_result:
             st.write("Invalid query. Please ask a relevant financial question.")
+            return
+        
+        context = retrieve_documents(query, bm25, faiss_index, embed_model, chunks)
+        response = generate_response(context, query, slm_model)
+        
+        is_valid, confidence_score = check_hallucination(response, context, embed_model)
+        if confidence_score < CONFIDENCE_THRESHOLD:
+            response = "I don't have enough reliable data to answer this accurately."
+            confidence = f"Low ({confidence_score:.2f})"
+        else:
+            confidence = f"High ({confidence_score:.2f})" if is_valid else f"Medium ({confidence_score:.2f})"
+        
+        st.markdown(f"**Answer:** {response}")
+        st.markdown(f"**Confidence Score:** {confidence}")
 
 if __name__ == "__main__":
     pdf_paths = get_local_pdfs()
