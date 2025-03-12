@@ -18,7 +18,7 @@ FINANCE_KEYWORDS = ["revenue", "profit", "loss", "investment", "stock", "dividen
 
 @st.cache_resource
 def get_local_pdfs():
-    return ["TCS-2023-2024.pdf"]
+    return ["TCS-2022-2023.pdf","TCS-2023-2024.pdf",]
 
 @st.cache_resource
 def extract_text_from_pdfs(pdf_paths):
